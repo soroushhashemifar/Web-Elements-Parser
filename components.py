@@ -9,20 +9,22 @@ class Browser:
     component_type = "browser"
 
     def __init__(self, browser, compatibility=None, gecko_release_version=None, version=None):
-        self.browser = browser.split("/")[0]
-        if version is None and browser != "":
-            self.browser_version = browser.split("/")[1]
+        browser = browser.split("/")
+        self.browser = browser[0] if len(browser) > 0 else None
+
+        if version is None and browser != "" and len(browser) > 1:
+            self.browser_version = browser[1]
         elif version is None and browser != None:
             self.browser_version = None
         else:
             self.browser_version = version.split(
-                "/")[1] if version is not None else None
+                "/")[1] if version is not None and len(version.split("/")) > 1 else None
         self.compatibility = compatibility
         self.gecko_release_version = gecko_release_version
 
     def get_as_dict(self):
         return {
-            "browser": self.browser,
+            "browser_name": self.browser,
             "browser_version": self.browser_version,
             "compatibility": [item.get_as_dict() for item in self.compatibility],
             "gecko_release_version": self.gecko_release_version
@@ -34,14 +36,34 @@ class OS:
 
     component_type = "os"
 
-    def __init__(self, os):
-        self.os = os
-        if isinstance(self.os, str):
-            self.os = [term for term in os.split("; ") if term != None]
+    def __init__(self, os, devices_list):
+        self.os = []
+        self.compatibilities = []
+        self.os_version = None
+
+        if isinstance(os, str):
+            for term in os.split("; "):
+                if bool(re.match(r".*x\d+(_\d+)?.*", term)):
+                    self.os_version = term
+                elif bool(re.match(r"^.+/.+", term)):
+                    self.compatibilities.append(term)
+                elif term not in [None, ""] + devices_list:
+                    self.os.append(term)
+
+        elif isinstance(os, list):
+            for term in os:
+                if bool(re.match(r".*x\d+(_\d+)?.*", term)):
+                    self.os_version = term
+                elif bool(re.match(r"^.+/.+", term)):
+                    self.compatibilities.append(term)
+                elif term not in [None, ""] + devices_list:
+                    self.os.append(term)
 
     def get_as_dict(self):
         return {
-            "os": self.os,
+            "os_name": self.os,
+            "compatibilities": self.compatibilities,
+            "os_version": self.os_version,
         }
 
 
@@ -51,15 +73,16 @@ class Product:
     component_type = "product"
 
     def __init__(self, product):
-        self.product = product.split("/")[0]
-        if len(product.split("/")) > 1:
-            self.product_version = product.split("/")[1]
+        product = product.split("/")
+        self.product = product[0] if len(product) > 0 else None
+        if len(product) > 1:
+            self.product_version = product[1] if len(product) > 1 else None
         else:
             self.product_version = None
 
     def get_as_dict(self):
         return {
-            "product": self.product,
+            "product_name": self.product,
             "product_version": self.product_version,
         }
 
@@ -73,7 +96,9 @@ class Bot:
         if bool(re.match(r"\+?https?://.+/.*", bot)):
             self.bot = None
             self.bot_version = None
-            self.target_link = bot
+            self.target_link = url_parser(bot)
+            if self.target_link is not None:
+                self.target_link = self.target_link.parse().components_as_dictionary()
         else:
             bot_temp = bot.split("; ")
             splitted_bot = bot_temp[1].split("/")
@@ -82,17 +107,21 @@ class Bot:
             self.bot_version = splitted_bot[1] if len(
                 splitted_bot) == 2 else None
             if bot_temp[2][0] == "+":
-                self.target_link = bot_temp[2][1:]
+                self.target_link = url_parser(bot_temp[2][1:])
+                if self.target_link is not None:
+                    self.target_link = self.target_link.parse().components_as_dictionary()
             else:
-                self.target_link = bot_temp[2]
+                self.target_link = url_parser(bot_temp[2])
+                if self.target_link is not None:
+                    self.target_link = self.target_link.parse().components_as_dictionary()
 
         self.url_parser = url_parser
 
     def get_as_dict(self):
         return {
-            "bot": self.bot,
+            "bot_name": self.bot,
             "bot_version": self.bot_version,
-            "target_link": self.url_parser(self.target_link).parse().components_as_dictionary()
+            "target_link": self.target_link
         }
 
 
@@ -102,12 +131,14 @@ class Device:
 
     def __init__(self, device_name, device_build=None):
         self.device = device_name
-        self.device_build = None if device_build is None else device_build.split(
-            "/")[1]
+        device_build = device_build.split(
+            "/") if device_build is not None else None
+        self.device_build = device_build[1] if device_build is not None and len(
+            device_build) > 1 else None
 
     def get_as_dict(self):
         return {
-            "device": self.device,
+            "device_name": self.device,
             "device_build": self.device_build,
         }
 
